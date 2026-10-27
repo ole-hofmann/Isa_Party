@@ -5,3 +5,6 @@ config.php
 data/*
 !data/.htaccess
 *.csv
+
+# Server-Deployment (enthält Passwort und Gästeliste)
+deploy/

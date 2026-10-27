@@ -2,6 +2,6 @@ Options -Indexes
 DirectoryIndex index.php
 
 # Gästeliste, Konfiguration und Doku nicht über den Browser ausliefern
-<FilesMatch "\.(csv|json|lock|txt|md|tmp)$|^(config|config\.example|lib)\.php$">
+<FilesMatch "\.(csv|json|lock|txt|md|tmp)$|^(config|config\.example|lib)\.php$|^\.">
   Require all denied
 </FilesMatch>
