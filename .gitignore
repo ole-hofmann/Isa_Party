@@ -1,0 +1,7 @@
+# Passwort
+config.php
+
+# Gästeliste und Einlass-Status (personenbezogene Daten – nicht ins Repo!)
+data/*
+!data/.htaccess
+*.csv
