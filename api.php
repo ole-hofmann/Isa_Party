@@ -12,7 +12,16 @@ function respond(array $data, int $status = 200): void
 
 function guest_list(array $state): array
 {
-    return array_values($state['guests']);
+    return array_values(array_filter($state['guests'], function ($g) {
+        return empty($g['deleted']);
+    }));
+}
+
+function valid_name(string $raw): void
+{
+    if (mb_strlen(clean_name($raw)) < 2) {
+        respond(['error' => 'Bitte einen Namen eingeben'], 400);
+    }
 }
 
 header('Content-Type: application/json; charset=utf-8');
@@ -50,8 +59,8 @@ try {
         case 'undo':
             $id = (string)($input['id'] ?? '');
             [$status, $result] = with_state(function (array &$state) use ($action, $id) {
-                if (!isset($state['guests'][$id])) {
-                    return [404, ['error' => 'Gast nicht gefunden']];
+                if (!isset($state['guests'][$id]) || !empty($state['guests'][$id]['deleted'])) {
+                    return [404, ['error' => 'Gast nicht gefunden', 'guests' => guest_list($state)]];
                 }
                 $g = $state['guests'][$id];
                 if ($action === 'checkin' && $g['paid']) {
@@ -67,22 +76,55 @@ try {
 
         case 'add':
             $raw = (string)($input['name'] ?? '');
-            if (mb_strlen(clean_name($raw)) < 2) {
-                respond(['error' => 'Bitte einen Namen eingeben'], 400);
-            }
+            valid_name($raw);
             respond(with_state(function (array &$state) use ($raw) {
-                $guest = new_guest($raw, true);
-                $existed = isset($state['guests'][$guest['id']]);
+                $id = find_by_name($state, $raw);
+                $existed = $id !== null;
                 if (!$existed) {
-                    $state['guests'][$guest['id']] = $guest;
-                    log_action('add', $guest);
+                    $default = guest_id(name_key($raw));
+                    $old = $state['guests'][$default] ?? null;
+                    // Ein gelöschter Gast mit genau diesem Namen bekommt seine alte ID zurück
+                    $id = ($old !== null && !empty($old['deleted']) &&name_key($old['name']) === name_key($raw))
+                        ? $default
+                        : unique_id($state, name_key($raw));
+                    $state['guests'][$id] = new_guest($id, $raw, true);
+                    log_action('add', $state['guests'][$id]);
                 }
                 return [
-                    'guest'   => $state['guests'][$guest['id']],
+                    'guest'   => $state['guests'][$id],
                     'existed' => $existed,
                     'guests'  => guest_list($state),
                 ];
             }));
+
+        case 'rename':
+        case 'delete':
+            $id = (string)($input['id'] ?? '');
+            $raw = (string)($input['name'] ?? '');
+            if ($action === 'rename') {
+                valid_name($raw);
+            }
+            [$status, $result] = with_state(function (array &$state) use ($action, $id, $raw) {
+                if (!isset($state['guests'][$id]) || !empty($state['guests'][$id]['deleted'])) {
+                    return [404, ['error' => 'Gast nicht gefunden', 'guests' => guest_list($state)]];
+                }
+                $g = $state['guests'][$id];
+                if ($action === 'delete') {
+                    $g['deleted'] = true;
+                    log_action('delete', $g, $g['paid'] ? 'war bezahlt' : '');
+                } else {
+                    $other = find_by_name($state, $raw, $id);
+                    if ($other !== null) {
+                        return [409, ['error' => $state['guests'][$other]['name'] . ' steht schon auf der Liste']];
+                    }
+                    $oldName = $g['name'];
+                    $g['name'] = pretty_name($raw);
+                    log_action('rename', $g, 'vorher: ' . $oldName);
+                }
+                $state['guests'][$id] = $g;
+                return [200, ['guest' => $g, 'guests' => guest_list($state)]];
+            });
+            respond($result, $status);
 
         case 'export':
             $guests = with_state(function (array &$state) {

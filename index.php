@@ -45,7 +45,7 @@ header('Cache-Control: no-store');
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&display=swap">
-<link rel="stylesheet" href="assets/style.css?v=1">
+<link rel="stylesheet" href="assets/style.css?v=2">
 </head>
 <?php if (!is_logged_in()): ?>
 <body class="login-page">
@@ -106,22 +106,26 @@ header('Cache-Control: no-store');
     <p id="sheet-info" class="info"></p>
     <button id="btn-pay" class="btn ok big" type="button">💶 <?= $price ?> € erhalten – rein!</button>
     <button id="btn-undo" class="btn danger" type="button">Einlass rückgängig machen</button>
+    <div class="btn-row">
+      <button id="btn-rename" class="btn ghost" type="button">✏️ Umbenennen</button>
+      <button id="btn-delete" class="btn ghost" type="button">🗑️ Löschen</button>
+    </div>
     <button class="btn ghost" type="button" data-close>Abbrechen</button>
   </dialog>
 
   <dialog id="add" class="sheet">
-    <h2>Gast hinzufügen</h2>
-    <p class="info">Steht nicht auf der Liste – nur wenn Isa oder Laura okay sagen.</p>
+    <h2 id="add-title">Gast hinzufügen</h2>
+    <p id="add-info" class="info"></p>
     <form id="add-form">
       <input id="add-name" type="text" placeholder="Vor- und Nachname" autocomplete="off" required minlength="2">
-      <button class="btn ok big" type="submit">Hinzufügen</button>
+      <button id="add-submit" class="btn ok big" type="submit">Hinzufügen</button>
     </form>
     <button class="btn ghost" type="button" data-close>Abbrechen</button>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="assets/app.js?v=1"></script>
+  <script src="assets/app.js?v=2"></script>
 </body>
 <?php endif ?>
 </html>

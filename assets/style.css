@@ -48,6 +48,8 @@ h1, h2 { font-family: "Creepster", system-ui, sans-serif; font-weight: 400; lett
 .btn.danger { background: transparent; color: var(--red); border: 1px solid rgba(255, 77, 94, .5); }
 .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
 .btn:active { transform: scale(.98); }
+.btn-row { display: flex; gap: 10px; }
+.btn-row .btn { flex: 1; min-width: 0; padding: 14px 8px; font-size: .95rem; white-space: nowrap; }
 .btn:disabled { opacity: .5; }
 
 input[type=search], input[type=text], input[type=password] {

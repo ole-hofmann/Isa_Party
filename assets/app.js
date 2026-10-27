@@ -11,14 +11,17 @@
     statIn: $('#stat-in'), statOpen: $('#stat-open'), statCash: $('#stat-cash'),
     offline: $('#offline'), toast: $('#toast'),
     sheet: $('#sheet'), sheetTag: $('#sheet-tag'), sheetName: $('#sheet-name'), sheetInfo: $('#sheet-info'),
-    btnPay: $('#btn-pay'), btnUndo: $('#btn-undo'),
+    btnPay: $('#btn-pay'), btnUndo: $('#btn-undo'), btnRename: $('#btn-rename'), btnDelete: $('#btn-delete'),
     add: $('#add'), addForm: $('#add-form'), addName: $('#add-name'), btnAddOpen: $('#btn-add-open'),
+    addTitle: $('#add-title'), addInfo: $('#add-info'), addSubmit: $('#add-submit'),
   };
+  const actionButtons = [el.btnPay, el.btnUndo, el.btnRename, el.btnDelete, el.addSubmit];
 
   let guests = [];
   let lastJson = '';
   let filter = 'all';
   let currentId = null;
+  let nameMode = 'add'; // Namensdialog: 'add' oder 'rename'
   let busy = false;
 
   // ------------------------------------------------------------ Suche
@@ -114,12 +117,17 @@
         : '';
     }
 
-    if (currentId && el.sheet.open) fillSheet();
+    if (currentId && (el.sheet.open || el.add.open)) fillSheet();
   }
 
   function fillSheet() {
     const g = guests.find((x) => x.id === currentId);
-    if (!g) return;
+    if (!g) {
+      // Wurde auf einem anderen Handy gelöscht
+      if (el.sheet.open) el.sheet.close();
+      if (el.add.open && nameMode === 'rename') el.add.close();
+      return;
+    }
     el.sheetName.textContent = g.name;
     el.sheetTag.textContent = g.added ? 'Nachgetragen' : 'Auf der Gästeliste';
     el.sheetTag.className = 'tag' + (g.added ? ' warn' : '');
@@ -138,6 +146,19 @@
     currentId = id;
     fillSheet();
     el.sheet.showModal();
+  }
+
+  function openNameDialog(mode, name) {
+    nameMode = mode;
+    const rename = mode === 'rename';
+    el.addTitle.textContent = rename ? 'Umbenennen' : 'Gast hinzufügen';
+    el.addInfo.textContent = rename
+      ? 'Zum Beispiel wenn der Name auf der Liste falsch geschrieben ist.'
+      : 'Steht nicht auf der Liste – nur wenn Isa oder Laura okay sagen.';
+    el.addSubmit.textContent = rename ? 'Speichern' : 'Hinzufügen';
+    el.addName.value = name;
+    el.add.showModal();
+    el.addName.focus();
   }
 
   let toastTimer;
@@ -196,7 +217,7 @@
   async function act(fn) {
     if (busy) return;
     busy = true;
-    el.btnPay.disabled = el.btnUndo.disabled = true;
+    actionButtons.forEach((b) => { b.disabled = true; });
     try {
       await fn();
     } catch (e) {
@@ -209,7 +230,7 @@
       }
     } finally {
       busy = false;
-      el.btnPay.disabled = el.btnUndo.disabled = false;
+      actionButtons.forEach((b) => { b.disabled = false; });
     }
   }
 
@@ -250,14 +271,35 @@
     toast(`${g.name} wieder auf „offen“ gesetzt`, 'warn');
   }));
 
-  el.btnAddOpen.addEventListener('click', () => {
-    el.addName.value = el.search.value.trim();
-    el.add.showModal();
-    el.addName.focus();
+  el.btnRename.addEventListener('click', () => {
+    const g = guests.find((x) => x.id === currentId);
+    if (g) openNameDialog('rename', g.name);
   });
+
+  el.btnDelete.addEventListener('click', () => act(async () => {
+    const g = guests.find((x) => x.id === currentId);
+    if (!g) return;
+    const warn = g.paid ? `\n\nAchtung: ${g.name} ist schon drin und hat ${PRICE} € bezahlt – das fehlt dann in der Kasse.` : '';
+    if (!confirm(`${g.name} wirklich von der Gästeliste löschen?${warn}`)) return;
+    await api('delete', { id: g.id });
+    el.sheet.close();
+    toast(`${g.name} gelöscht`, 'warn');
+  }));
+
+  el.btnAddOpen.addEventListener('click', () => openNameDialog('add', el.search.value.trim()));
 
   el.addForm.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (nameMode === 'rename') {
+      act(async () => {
+        const { guest } = await api('rename', { id: currentId, name: el.addName.value });
+        el.add.close();
+        if (el.search.value.trim()) el.search.value = guest.name;
+        render();
+        toast(`Umbenannt in ${guest.name}`);
+      });
+      return;
+    }
     act(async () => {
       const { guest, existed } = await api('add', { name: el.addName.value });
       el.add.close();

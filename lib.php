@@ -86,15 +86,38 @@ function guest_id(string $key): string
     return 'g' . substr(md5($key), 0, 10);
 }
 
-function new_guest(string $raw, bool $added): array
+function new_guest(string $id, string $raw, bool $added): array
 {
     return [
-        'id'     => guest_id(name_key($raw)),
-        'name'   => pretty_name($raw),
-        'paid'   => false,
-        'paidAt' => null,
-        'added'  => $added,
+        'id'      => $id,
+        'name'    => pretty_name($raw),
+        'paid'    => false,
+        'paidAt'  => null,
+        'added'   => $added,
+        'deleted' => false,
     ];
+}
+
+/** ID eines (nicht gelöschten) Gastes mit diesem Namen, sonst null */
+function find_by_name(array $state, string $raw, string $exceptId = ''): ?string
+{
+    $key = name_key($raw);
+    foreach ($state['guests'] as $id => $g) {
+        if ($id !== $exceptId && empty($g['deleted']) && name_key($g['name']) === $key) {
+            return $id;
+        }
+    }
+    return null;
+}
+
+/** Freie ID – die Standard-ID kann z. B. durch einen umbenannten Gast schon belegt sein */
+function unique_id(array $state, string $key): string
+{
+    $id = guest_id($key);
+    for ($n = 2; isset($state['guests'][$id]); $n++) {
+        $id = guest_id($key . '#' . $n);
+    }
+    return $id;
 }
 
 function read_csv_names(string $file): array
@@ -144,7 +167,10 @@ function with_state(callable $fn)
     }
 }
 
-/** Neue Namen aus der CSV übernehmen, sobald sich die Datei ändert. Bestehende Einträge bleiben erhalten. */
+/**
+ * Neue Namen aus der CSV übernehmen, sobald sich die Datei ändert. Bestehende Einträge bleiben erhalten.
+ * Gelöschte und umbenannte Gäste behalten ihre ID und werden dadurch nicht wieder aus der CSV angelegt.
+ */
 function sync_csv(array &$state): void
 {
     $csv = (string)config()['csv'];
@@ -157,13 +183,11 @@ function sync_csv(array &$state): void
     }
     $state['csvMtime'] = $mtime;
     foreach (read_csv_names($csv) as $raw) {
-        if (name_key($raw) === '') {
+        $key = name_key($raw);
+        if ($key === '' || isset($state['guests'][guest_id($key)]) || find_by_name($state, $raw) !== null) {
             continue;
         }
-        $guest = new_guest($raw, false);
-        if (!isset($state['guests'][$guest['id']])) {
-            $state['guests'][$guest['id']] = $guest;
-        }
+        $state['guests'][guest_id($key)] = new_guest(guest_id($key), $raw, false);
     }
 }
 
@@ -176,8 +200,8 @@ function save_state(array $state): void
     }
 }
 
-function log_action(string $action, array $guest): void
+function log_action(string $action, array $guest, string $extra = ''): void
 {
-    $line = sprintf("%s\t%s\t%s\t%s\n", date('Y-m-d H:i:s'), $action, $guest['id'], $guest['name']);
+    $line = sprintf("%s\t%s\t%s\t%s\t%s\n", date('Y-m-d H:i:s'), $action, $guest['id'], $guest['name'], $extra);
     file_put_contents(LOG_FILE, $line, FILE_APPEND | LOCK_EX);
 }
